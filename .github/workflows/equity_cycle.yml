@@ -1,0 +1,42 @@
+name: Equity Trading Cycle
+
+on:
+  schedule:
+    # Every 5 min during market hours window (13:00–21:00 UTC = ~9:00–17:00 ET), Mon–Fri
+    - cron: '*/5 13-20 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4   # Never overlap with the next 5-min run
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Run equity cycle
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python tools/trader_loop.py --equity-only
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: equity-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7
