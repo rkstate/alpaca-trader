@@ -1,0 +1,42 @@
+name: Crypto Trading Cycle
+
+on:
+  schedule:
+    # Every 15 min, 24/7
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14   # Never overlap with the next 15-min run
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Run crypto cycle
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python tools/trader_loop.py --crypto-only
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7
