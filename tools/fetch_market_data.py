@@ -31,9 +31,31 @@ TIMEFRAME_MAP = {
 
 def _start_time(timeframe: str, lookback_bars: int) -> datetime:
     _, delta = TIMEFRAME_MAP[timeframe]
-    # Add 50% buffer to account for non-trading periods
     buffer = int(lookback_bars * 2.5)
     return datetime.now(timezone.utc) - delta * buffer
+
+
+def _bars_to_df(bar_data) -> pd.DataFrame:
+    """Convert alpaca-py bar response (BarSet or list of Bar) to DataFrame."""
+    if hasattr(bar_data, "df"):
+        return bar_data.df
+    if isinstance(bar_data, list) and bar_data:
+        records = []
+        for b in bar_data:
+            records.append({
+                "timestamp": b.timestamp,
+                "open": float(b.open),
+                "high": float(b.high),
+                "low": float(b.low),
+                "close": float(b.close),
+                "volume": float(b.volume),
+                "vwap": float(b.vwap) if getattr(b, "vwap", None) else None,
+            })
+        df = pd.DataFrame(records)
+        if "timestamp" in df.columns:
+            df = df.set_index("timestamp")
+        return df
+    return pd.DataFrame()
 
 
 def fetch_stock_bars(
@@ -55,11 +77,10 @@ def fetch_stock_bars(
         result = {}
         for sym in symbols:
             try:
-                df = bars[sym].df
-                df = df.sort_index()
+                df = _bars_to_df(bars[sym]).sort_index()
                 if len(df) < lookback_bars:
                     logger.warning("%s: only %d bars (need %d)", sym, len(df), lookback_bars)
-                    result[sym] = df  # return what we have; caller can check
+                    result[sym] = df
                 else:
                     result[sym] = df.tail(lookback_bars)
             except (KeyError, Exception) as e:
@@ -88,8 +109,7 @@ def fetch_crypto_bars(
         result = {}
         for sym in symbols:
             try:
-                df = bars[sym].df
-                df = df.sort_index()
+                df = _bars_to_df(bars[sym]).sort_index()
                 if len(df) < lookback_bars:
                     logger.warning("%s: only %d bars (need %d)", sym, len(df), lookback_bars)
                     result[sym] = df
