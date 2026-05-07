@@ -152,7 +152,7 @@ def _run_equity_cycle(
 
     # --- STEP 3: Fetch bars + generate signals --------------------------------
     try:
-        bars = fetch_stock_bars(EQUITY_SYMBOLS, timeframe="5Min", lookback_bars=60)
+        bars = fetch_stock_bars(EQUITY_SYMBOLS, timeframe="5Min", lookback_bars=40)
     except Exception as e:
         errors.append(f"fetch_stock_bars: {e}")
         return positions_managed, orders_placed, orders_filled, errors
@@ -280,7 +280,7 @@ def _run_crypto_cycle(
 
     # Fetch bars + signals
     try:
-        bars = fetch_crypto_bars(CRYPTO_SYMBOLS, timeframe="15Min", lookback_bars=60)
+        bars = fetch_crypto_bars(CRYPTO_SYMBOLS, timeframe="15Min", lookback_bars=40)
     except Exception as e:
         errors.append(f"fetch_crypto_bars: {e}")
         return positions_managed, orders_placed, orders_filled, errors
