@@ -1,0 +1,34 @@
+name: EOD Telegram Notification
+
+on:
+  schedule:
+    # 21:05 UTC = 5:05 PM EDT (summer) / 4:05 PM EST (winter) — after market close year-round
+    - cron: '5 21 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    name: Send EOD summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Send Telegram notification
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python tools/notify_telegram.py
