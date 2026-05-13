@@ -47,16 +47,16 @@ def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def detect_crossover(ema_fast: pd.Series, ema_slow: pd.Series) -> str:
-    if len(ema_fast) < 2 or len(ema_slow) < 2:
-        return "none"
-    prev_diff = ema_fast.iloc[-2] - ema_slow.iloc[-2]
-    curr_diff = ema_fast.iloc[-1] - ema_slow.iloc[-1]
-    if prev_diff <= 0 and curr_diff > 0:
-        return "bullish_cross"
-    if prev_diff >= 0 and curr_diff < 0:
-        return "bearish_cross"
-    return "none"
+def detect_trend(ema_fast: pd.Series, ema_slow: pd.Series) -> str:
+    """Current trend state based on EMA relationship."""
+    if len(ema_fast) < 1 or len(ema_slow) < 1:
+        return "neutral"
+    diff = ema_fast.iloc[-1] - ema_slow.iloc[-1]
+    if diff > 0:
+        return "bullish"
+    if diff < 0:
+        return "bearish"
+    return "neutral"
 
 
 def generate_signals(
@@ -79,7 +79,7 @@ def generate_signals(
         ema_slow = compute_ema(close, slow_period)
         rsi = compute_rsi(close, rsi_period)
 
-        crossover = detect_crossover(ema_fast, ema_slow)
+        trend = detect_trend(ema_fast, ema_slow)
         current_price = float(close.iloc[-1])
         current_rsi = float(rsi.iloc[-1])
         current_ema_fast = float(ema_fast.iloc[-1])
@@ -88,26 +88,26 @@ def generate_signals(
 
         if asset_class == "crypto":
             # Long-only for crypto
-            if crossover == "bullish_cross" and current_rsi < rsi_overbought:
+            if trend == "bullish" and current_rsi < rsi_overbought:
                 signal = "BUY"
-                reasoning = f"Bullish EMA crossover (RSI={current_rsi:.1f} < {rsi_overbought})"
-            elif crossover == "bearish_cross":
+                reasoning = f"Bullish trend: EMA9 > EMA21 (RSI={current_rsi:.1f} < {rsi_overbought})"
+            elif trend == "bearish":
                 signal = "SELL"
-                reasoning = f"Bearish EMA crossover — closing long (RSI={current_rsi:.1f})"
+                reasoning = f"Bearish trend: EMA9 < EMA21 — close long (RSI={current_rsi:.1f})"
             else:
                 signal = "HOLD"
-                reasoning = f"No crossover (RSI={current_rsi:.1f}, crossover={crossover})"
+                reasoning = f"RSI filter active (RSI={current_rsi:.1f}, trend={trend})"
         else:
             # Equity: can go long or short
-            if crossover == "bullish_cross" and current_rsi < rsi_overbought:
+            if trend == "bullish" and current_rsi < rsi_overbought:
                 signal = "BUY"
-                reasoning = f"Bullish EMA crossover (RSI={current_rsi:.1f} < {rsi_overbought})"
-            elif crossover == "bearish_cross" and current_rsi > rsi_oversold:
+                reasoning = f"Bullish trend: EMA9 > EMA21 (RSI={current_rsi:.1f} < {rsi_overbought})"
+            elif trend == "bearish" and current_rsi > rsi_oversold:
                 signal = "SHORT"
-                reasoning = f"Bearish EMA crossover (RSI={current_rsi:.1f} > {rsi_oversold})"
+                reasoning = f"Bearish trend: EMA9 < EMA21 (RSI={current_rsi:.1f} > {rsi_oversold})"
             else:
                 signal = "HOLD"
-                reasoning = f"No actionable crossover (RSI={current_rsi:.1f}, crossover={crossover})"
+                reasoning = f"RSI filter active (RSI={current_rsi:.1f}, trend={trend})"
 
         results[symbol] = SignalResult(
             symbol=symbol,
