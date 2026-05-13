@@ -168,10 +168,14 @@ def _run_equity_cycle(
         quotes = {}
         errors.append(f"fetch_latest_quotes: {e}")
 
+    held_symbols = {p["symbol"].upper() for p in raw_positions}
+
     placed_ids = []
     for sym, sig in signals.items():
         if sig.signal not in ("BUY", "SHORT"):
             continue
+        if sym.upper() in held_symbols:
+            continue  # already in a position, wait for stop/target to exit first
 
         order_side = "buy" if sig.signal == "BUY" else "sell"
         quote = quotes.get(sym, {"bid": sig.current_price * 0.999, "ask": sig.current_price * 1.001})
@@ -295,9 +299,13 @@ def _run_crypto_cycle(
         quotes = {}
         errors.append(f"fetch_crypto_latest_quotes: {e}")
 
+    held_crypto = {p["symbol"].upper() for p in crypto_positions}
+
     placed_ids = []
     for sym, sig in signals.items():
         if sig.signal == "BUY":
+            if sym.upper() in held_crypto:
+                continue  # already holding, wait for exit
             quote = quotes.get(sym, {"bid": sig.current_price * 0.998, "ask": sig.current_price * 1.002})
             decision = size_position(sym, "buy", sig.strength, raw_account,
                                      all_positions, sig.current_price, quote)
