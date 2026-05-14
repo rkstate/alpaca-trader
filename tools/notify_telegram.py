@@ -90,6 +90,39 @@ def _order_type_label(order_type: str) -> str:
     return "market"
 
 
+def _build_decision_summary(summary, orders: list[dict], signals: dict[str, SignalResult]) -> str:
+    total = len(signals)
+    actionable = [v for v in signals.values() if v.signal in ("BUY", "SHORT")]
+    sells = [v for v in signals.values() if v.signal == "SELL"]
+    entry_orders = [o for o in orders if _order_type_label(o["order_type"]) == "market"]
+
+    s1 = f"The bot scanned {total} symbol(s) at end of day using EMA(9/21) trend detection filtered by RSI(14)."
+
+    if actionable:
+        syms = ", ".join(s.symbol for s in actionable)
+        s2 = f"{len(actionable)} symbol(s) had an active trend signal ({syms}); the rest were filtered out by RSI or showed no clear trend."
+    elif sells:
+        s2 = f"No new entries were signaled — {len(sells)} crypto position(s) triggered a SELL to close longs on a bearish trend."
+    else:
+        s2 = f"All {total} symbol(s) returned HOLD — either no clear EMA trend or RSI was in a neutral zone."
+
+    if entry_orders:
+        s3 = f"{len(entry_orders)} market order(s) were executed; GTC stop-losses at 1.5% were placed automatically for each."
+    elif actionable and not entry_orders:
+        s3 = "Despite active signals, no orders were placed — positions in those symbols were likely already open or risk limits rejected the sizing."
+    else:
+        s3 = "No orders were placed today."
+
+    pnl_dir = "up" if summary.day_pnl >= 0 else "down"
+    total_exposure = sum(p.pct_of_portfolio for p in summary.positions)
+    if summary.positions:
+        s4 = f"Closed the day {pnl_dir} {abs(summary.day_pnl_pct):.2f}% with {len(summary.positions)} open position(s) at {total_exposure:.0f}% portfolio exposure."
+    else:
+        s4 = f"Closed the day {pnl_dir} {abs(summary.day_pnl_pct):.2f}% with no open positions (fully flat)."
+
+    return f"{s1} {s2} {s3} {s4}"
+
+
 def build_message(summary, orders: list[dict], signals: dict[str, SignalResult]) -> str:
     today_str = datetime.now(timezone.utc).strftime("%A %b %d")
     pnl_sign = "+" if summary.day_pnl >= 0 else ""
@@ -164,12 +197,16 @@ def build_message(summary, orders: list[dict], signals: dict[str, SignalResult])
             sample = next(iter(holds.values()))
             # Extract crossover state and RSI range
             rsi_values = [f"{s.rsi:.0f}" for s in holds.values()]
-            lines.append(f"     No EMA crossover detected. RSI range: {min(float(r) for r in rsi_values):.0f}–{max(float(r) for r in rsi_values):.0f}")
+            lines.append(f"     RSI neutral or trend unclear. RSI range: {min(float(r) for r in rsi_values):.0f}–{max(float(r) for r in rsi_values):.0f}")
 
         if not signals:
             lines.append("  _No signals — insufficient bar data_")
     else:
         lines.append("📡 *Signal scan:* No data available")
+
+    lines.append("")
+    lines.append("🧠 *Decision Summary*")
+    lines.append(_build_decision_summary(summary, orders, signals))
 
     return "\n".join(lines)
 
